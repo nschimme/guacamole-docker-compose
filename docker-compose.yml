@@ -139,10 +139,13 @@ services:
       POSTGRES_PASSWORD: 'ChooseYourOwnPasswordHere1234'
       POSTGRES_USER: guacamole_user
       RECORDING_SEARCH_PATH: /record
+      # set custom GUACAMOLE_HOME within container
+      GUACAMOLE_HOME: /guachome
     image: guacamole/guacamole
     networks:
       - guacnetwork_compose
     volumes:
+      - ./guachome:/guachome
       - ./record:/record:rw
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/guacamole/"]
