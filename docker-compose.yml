@@ -16,7 +16,8 @@
 # - create a service 'guacd_compose' from 'guacamole/guacd' connected to 'guacnetwork_compose'
 # - create a service 'postgres_guacamole_compose' (1) from 'postgres' connected to 'guacnetwork_compose'
 # - create a service 'guacamole_compose' (2)  from 'guacamole/guacamole/' conn. to 'guacnetwork_compose'
-# - create a service 'nginx_guacamole_compose' (3) from 'nginx' connected to 'guacnetwork_compose'
+# - create a service 'watchdog_guacamole_compose' (3)  from 'docker:cli' to monitor the health
+# - create a service 'nginx_guacamole_compose' (4) from 'nginx' connected to 'guacnetwork_compose'
 #
 # (1)
 #  DB-Init script is in './init/initdb.sql' it has been created executing
@@ -83,6 +84,7 @@
 # 0.6                2023-03-23        switched to postgres 15.2-alpine
 # 0.61               2024-07-27        fix networks + version 3.0
 # 0.62               2024-07-27        fix
+# 0.63               2025-06-01        add watchdog
 #####################################################################################
 
 #the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion
@@ -142,12 +144,28 @@ services:
       - guacnetwork_compose
     volumes:
       - ./record:/record:rw
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/guacamole/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
 ## enable next line if not using nginx
 ##    - 8080:8080/tcp # Guacamole is on :8080/guacamole, not /.
 ## enable next line when using nginx
     - 8080/tcp
     restart: always
+
+  # watchdog
+  watchdog:
+    image: docker:cli
+    container_name: watchdog_guacamole_compose
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./watchdog.sh:/watchdog.sh:ro
+    entrypoint: ["sh", "/watchdog.sh"]
 
 ########### optional ##############
   # nginx
@@ -159,6 +177,12 @@ services:
    - ./nginx/templates:/etc/nginx/templates:ro
    - ./nginx/ssl/self.cert:/etc/nginx/ssl/self.cert:ro
    - ./nginx/ssl/self-ssl.key:/etc/nginx/ssl/self-ssl.key:ro
+   healthcheck:
+     test: ["CMD", "curl", "-k", "-f", "https://localhost:443/"]
+     interval: 30s
+     timeout: 10s
+     retries: 3
+     start_period: 40s
    ports:
    - 8443:443
    networks:
